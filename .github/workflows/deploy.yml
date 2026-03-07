@@ -30,25 +30,37 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            sudo yum -y update
-            sudo yum install -y httpd
-            sudo systemctl start httpd
-            sudo systemctl enable httpd
-            # Add Node.js source for latest version
-            curl -sL https://rpm.nodesource.com/setup_14.x | sudo bash -
-            # Install Node.js and npm
-            sudo yum install -y nodejs
-            # Navigate to the project directory
+            # 1. Update package list and install Apache (Ubuntu uses 'apache2')
+            sudo apt-get update -y
+            sudo apt-get install -y apache2
+            sudo systemctl start apache2
+            sudo systemctl enable apache2
+
+            # 2. Install Node.js 24 using the modern NodeSource method
+            sudo apt-get install -y ca-certificates curl gnupg
+            sudo mkdir -p /etc/apt/keyrings
+            curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+            
+            NODE_MAJOR=24
+            echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list
+            
+            sudo apt-get update
+            sudo apt-get install nodejs -y
+
+            # 3. Deploy and Build
             cd ${{ secrets.TARGET_DIR }}
-            # Install project dependencies
+            
+            # Remove old build/modules to ensure a clean slate for Node 24
+            rm -rf node_modules .next build
+            
             npm install
-            # Build the project
             npm run build
-            # Clean up existing files in the web server directory
+
+            # 4. Move files to Web Server
+            # Note: Next.js usually builds to '.next' or 'out', not 'build'
+            # Adjust 'build/*' below if your output folder is different
             sudo rm -rf /var/www/html/*
-            # Move the build files to the web server directory
-            sudo mv build/* /var/www/html
-            # Set proper SELinux context for the web content
-            sudo chcon -R -t httpd_sys_content_t /var/www/html
-            # Restart Apache to apply changes
-            sudo systemctl restart httpd
+            sudo cp -r build/* /var/www/html/ 
+
+            # 5. Finalize
+            sudo systemctl restart apache2
