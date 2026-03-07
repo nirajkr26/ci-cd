@@ -51,16 +51,13 @@ jobs:
             cd ${{ secrets.TARGET_DIR }}
             
             # Remove old build/modules to ensure a clean slate for Node 24
-            rm -rf node_modules .next build
-            
+            rm -rf node_modules .next build out
+
             npm install
             npm run build
+            npm run export
 
-            # 4. Move files to Web Server
-            # Note: Next.js usually builds to '.next' or 'out', not 'build'
-            # Adjust 'build/*' below if your output folder is different
             sudo rm -rf /var/www/html/*
-            sudo cp -r build/* /var/www/html/ 
+            sudo cp -r out/* /var/www/html/
 
-            # 5. Finalize
             sudo systemctl restart apache2
